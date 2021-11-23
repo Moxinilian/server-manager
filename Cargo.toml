@@ -1,0 +1,18 @@
+[package]
+name = "server-manager"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ron = "0.7"
+serde = "1.0"
+anyhow = "1.0.47"
+async-std = { version = "1.10", features = ["attributes", "unstable"] }
+rcon = "0.5.1"
+rand = { version = "0.8.4", features = ["min_const_gen"] }
+base64 = "0.13"
+futures = "0.3"
+nix = "0.23"
+async-walkdir = "0.2"
