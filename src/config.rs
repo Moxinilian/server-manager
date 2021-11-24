@@ -53,7 +53,7 @@ impl Default for ConfigSerialized {
             java: "java".into(),
             java_args: Vec::new(),
             rcon_password: base64::encode(rcon_key),
-            rcon_port: 25580,
+            rcon_port: 25575,
             emergency_mail: Vec::new(),
             backups: Some(Default::default()),
         }
@@ -150,7 +150,7 @@ pub struct BackupConfig {
 impl BackupConfig {
     pub async fn try_from_serialized(
         config: BackupConfigSerialized,
-        server_folder: &PathBuf,
+        server_folder: &Path,
     ) -> Result<Self> {
         if !Duplicity::is_available().await? {
             return Err(anyhow!(
@@ -194,7 +194,7 @@ impl BackupConfig {
         Ok(Self {
             backup_folder,
             world_folder,
-            incremental: Duration::from_secs(config.incremental_freq_hours * 60 * 60),
+            incremental: Duration::from_secs(config.incremental_freq_hours * 60 * 2),
             full_backup_every: config.full_backup_every,
             keep_full_backup: config.keep_full_backup,
             rclone_path: config.rclone_path,

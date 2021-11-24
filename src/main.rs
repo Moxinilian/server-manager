@@ -1,5 +1,3 @@
-use std::fs::File;
-
 use anyhow::Result;
 
 use crate::{config::{Config, ConfigSerialized}, server::ServerManager};
@@ -7,6 +5,7 @@ use crate::{config::{Config, ConfigSerialized}, server::ServerManager};
 mod config;
 mod backup_utils;
 mod server;
+mod child;
 
 #[async_std::main]
 async fn main() -> Result<()> {

@@ -3,21 +3,22 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{backup_utils::{Duplicity, get_folder_size}, config::{BackupConfig, Config}};
+use crate::{
+    backup_utils::{get_folder_size, Duplicity, Rclone},
+    child::ChildKiller,
+    config::{BackupConfig, Config},
+};
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use async_std::process::{Child, Command};
 use async_std::{
     channel::{self, Receiver, Sender},
     future::pending,
     prelude::FutureExt as AsyncStdFutureExt,
-    task::spawn,
 };
-use futures::{
-    future::{select, AbortHandle, Abortable, Fuse},
-    pin_mut, select, FutureExt,
-};
+use futures::{pin_mut, select, FutureExt};
 use nix::sys::signal::{self, Signal};
+use url::Url;
 
 pub enum MinecraftCommand {
     SaveOn,
@@ -35,7 +36,7 @@ impl ServerManager {
         let mut recent_incidents = 0;
 
         loop {
-            let mut serv_handle = Command::new(&config.java)
+            let serv_handle = Command::new(&config.java)
                 .args(&config.java_args)
                 .arg("-jar")
                 .arg(&config.server_jar)
@@ -43,7 +44,10 @@ impl ServerManager {
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit())
                 .stdin(Stdio::inherit())
+                .current_dir(&config.server_folder)
                 .spawn()?;
+
+            let mut serv_handle = ChildKiller(serv_handle);
 
             let (cmd_send, cmd_rec) = channel::bounded(32);
 
@@ -99,7 +103,7 @@ impl ServerManager {
         Ok(())
     }
 
-    async fn emergency_shutdown(serv_handle: &mut Child) {
+    pub async fn emergency_shutdown(serv_handle: &mut Child) {
         let pid = nix::unistd::Pid::from_raw(serv_handle.id() as i32);
 
         signal::kill(pid, Signal::SIGINT).ok();
@@ -183,16 +187,16 @@ impl RconManager {
             },
         };
 
+        println!("[ServerManager] [RCON] Acquired connection to server.");
+
         loop {
             match chan.recv().await? {
-                MinecraftCommand::SaveOn => drop(dbg!(conn.cmd("save-on").await?)),
+                MinecraftCommand::SaveOn => drop(conn.cmd("save-on").await?),
                 MinecraftCommand::SaveAll(flush) => {
-                    dbg!(
-                        conn.cmd(if flush { "save-all flush" } else { "save-all" })
-                            .await?
-                    );
+                    conn.cmd(if flush { "save-all flush" } else { "save-all" })
+                        .await?;
                 }
-                MinecraftCommand::SaveOff => drop(dbg!(conn.cmd("save-off").await?)),
+                MinecraftCommand::SaveOff => drop(conn.cmd("save-off").await?),
                 MinecraftCommand::Broadcast(msg) => {
                     conn.cmd(&format!(
                         "tellraw @a {{\"text\":\"{}\",\"color\":\"light_purple\"}}",
@@ -211,11 +215,11 @@ struct BackupManager;
 impl BackupManager {
     pub async fn start(config: Option<BackupConfig>, cmd_chan: Sender<MinecraftCommand>) {
         if let Some(config) = config {
-            let (back_send, back_rec) = channel::bounded(0);
+            let (back_send, back_rec) = channel::bounded(1);
 
             let world_folder = match config.world_folder.into_os_string().into_string() {
                 Ok(p) => p,
-                Err(e) => {
+                Err(_) => {
                     println!("[ServerManager] [BACKUP] Failed to convert world path to string.");
                     return;
                 }
@@ -223,14 +227,34 @@ impl BackupManager {
 
             let backup_folder = match config.backup_folder.into_os_string().into_string() {
                 Ok(p) => p,
-                Err(e) => {
+                Err(_) => {
                     println!("[ServerManager] [BACKUP] Failed to convert backup path to string.");
                     return;
                 }
             };
 
+            let world_folder_url = match Url::from_file_path(&world_folder) {
+                Ok(p) => p,
+                Err(_) => {
+                    println!("[ServerManager] [BACKUP] Failed to make path of world folder.");
+                    return;
+                }
+            };
+
+            let backup_folder_url = match Url::from_file_path(&backup_folder) {
+                Ok(p) => p,
+                Err(_) => {
+                    println!("[ServerManager] [BACKUP] Failed to make path of world folder.");
+                    return;
+                }
+            };
+
+            let mut waiter = async_std::task::sleep(config.incremental);
             loop {
-                async_std::task::sleep(config.incremental).await;
+                waiter.await;
+                waiter = async_std::task::sleep(config.incremental);
+
+                println!("[ServerManager] [BACKUP] Sarting backup...");
 
                 if !config.silent {
                     match cmd_chan
@@ -315,7 +339,7 @@ impl BackupManager {
                 }
 
                 if let Err(x) =
-                    Duplicity::backup(config.full_backup_every, &world_folder, &backup_folder).await
+                    Duplicity::backup(config.full_backup_every, &world_folder, backup_folder_url.as_str()).await
                 {
                     println!(
                         "[ServerManager] [BACKUP] Failed to perform duplicity backup:\n{}",
@@ -340,9 +364,14 @@ impl BackupManager {
                     _ => (),
                 }
 
+                println!("[ServerManager] [BACKUP] Backup complete.");
+
                 if !config.silent {
                     let backup_msg = if let Ok(folder_size) = get_folder_size(&world_folder).await {
-                        format!("Backup done! ({:.2} GB)", folder_size as f64 / (1024u64.pow(3) as f64))
+                        format!(
+                            "Backup done! ({:.2} GB)",
+                            folder_size as f64 / (1024u64.pow(3) as f64)
+                        )
                     } else {
                         "Backup done! (failed to get size)".into()
                     };
@@ -365,7 +394,7 @@ impl BackupManager {
                 }
 
                 if let Err(x) =
-                    Duplicity::cleanup_old(config.keep_full_backup, &backup_folder).await
+                    Duplicity::cleanup_old(config.keep_full_backup, backup_folder_url.as_str()).await
                 {
                     println!(
                         "[ServerManager] [BACKUP] Failed to perform duplicity cleanup:\n{}",
@@ -374,8 +403,30 @@ impl BackupManager {
                     return;
                 }
 
-                let mut sync_attempts = 0;
-                todo!();
+                if let Some(remote) = &config.rclone_path {
+                    let mut sync_attempts = 0u32;
+
+                    let mut err = None;
+                    while sync_attempts < 5 {
+                        if let Err(new_err) = Rclone::sync(remote, &backup_folder).await {
+                            sync_attempts += 1;
+                            err = Some(new_err);
+                        } else {
+                            break;
+                        }
+                    }
+
+                    if let Some(err) = err {
+                        if sync_attempts >= 5 {
+                            println!("[ServerManager] [BACKUP] Failed to sync backup data to remote:\n{}", err);
+                            return;
+                        } else {
+                            println!("[ServerManager] [BACKUP] At least one recoverable error occured while trying to sync backup data to remote:\n{}", err);
+                        }
+                    }
+
+                    println!("[ServerManager] [BACKUP] Remote backup sync complete.")
+                }
             }
         } else {
             pending::<()>().await;

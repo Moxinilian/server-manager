@@ -50,9 +50,9 @@ impl Rclone {
         // rclone sync -i local remote
         let mut child = Command::new("rclone")
             .arg("sync")
-            .arg("-i")
             .arg(local)
             .arg(remote)
+            .stderr(Stdio::piped())
             .spawn()?;
 
         if child.status().await?.success() {
@@ -99,6 +99,7 @@ impl Duplicity {
             .arg(format!("{}h", full_if_older_than_hours))
             .arg(to_backup)
             .arg(backup_to)
+            .stderr(Stdio::piped())
             .spawn()?;
 
         if child.status().await?.success() {
@@ -125,6 +126,7 @@ impl Duplicity {
             .arg("remove-all-but-n-full")
             .arg(keep_full.to_string())
             .arg(backup_to)
+            .stderr(Stdio::piped())
             .spawn()?;
 
         if child.status().await?.success() {
