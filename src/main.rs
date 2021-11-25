@@ -1,11 +1,16 @@
 use anyhow::Result;
 
-use crate::{config::{Config, ConfigSerialized}, server::ServerManager};
+use crate::{
+    config::{Config, ConfigSerialized},
+    server::ServerManager,
+};
 
+mod backup;
+mod cmd_utils;
 mod config;
-mod backup_utils;
+mod mail;
+mod rcon;
 mod server;
-mod child;
 
 #[async_std::main]
 async fn main() -> Result<()> {
@@ -20,7 +25,7 @@ async fn main() -> Result<()> {
         println!("[ServerManager] Generated a dummy configuration file.");
         return Ok(());
     };
-    
+
     println!("[ServerManager] Starting server...");
 
     ServerManager::start(config).await?;

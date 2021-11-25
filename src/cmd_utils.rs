@@ -47,7 +47,7 @@ impl Rclone {
     }
 
     pub async fn sync(remote: &str, local: &str) -> Result<()> {
-        // rclone sync -i local remote
+        // rclone sync local remote
         let mut child = Command::new("rclone")
             .arg("sync")
             .arg(local)

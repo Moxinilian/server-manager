@@ -4,10 +4,11 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
+use async_smtp::{smtp::authentication::Credentials, EmailAddress, Envelope};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
-use crate::backup_utils::{Duplicity, Rclone};
+use crate::cmd_utils::{Duplicity, Rclone};
 
 #[derive(Serialize, Deserialize)]
 pub struct ConfigSerialized {
@@ -19,7 +20,7 @@ pub struct ConfigSerialized {
     java_args: Vec<String>,
     rcon_password: String,
     rcon_port: u16,
-    emergency_mail: Vec<String>,
+    mailing: Option<MailConfigSerialized>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -32,6 +33,15 @@ pub struct BackupConfigSerialized {
     rclone_path: Option<String>,
     flush_on_save: bool,
     silent: bool,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct MailConfigSerialized {
+    contacts: Vec<String>,
+    smtp_server: String,
+    sender: String,
+    username: String,
+    password: String,
 }
 
 impl ConfigSerialized {
@@ -54,7 +64,7 @@ impl Default for ConfigSerialized {
             java_args: Vec::new(),
             rcon_password: base64::encode(rcon_key),
             rcon_port: 25575,
-            emergency_mail: Vec::new(),
+            mailing: None,
             backups: Some(Default::default()),
         }
     }
@@ -85,7 +95,7 @@ pub struct Config {
     pub rcon_port: u16,
     pub java: String,
     pub java_args: Vec<String>,
-    pub emergency_mail: Vec<String>,
+    pub mailing: Option<MailConfig>,
 }
 
 impl Config {
@@ -116,6 +126,12 @@ impl Config {
             None
         };
 
+        let mailing = if let Some(mailing) = value.mailing {
+            Some(MailConfig::try_from_serialized(mailing).await?)
+        } else {
+            None
+        };
+
         Ok(Self {
             auto_restart: value.auto_restart,
             server_folder,
@@ -125,7 +141,7 @@ impl Config {
             rcon_port: value.rcon_port,
             java: value.java,
             java_args: value.java_args,
-            emergency_mail: value.emergency_mail,
+            mailing,
         })
     }
 
@@ -200,6 +216,35 @@ impl BackupConfig {
             rclone_path: config.rclone_path,
             flush_on_save: config.flush_on_save,
             silent: config.silent,
+        })
+    }
+}
+
+#[derive(Clone)]
+pub struct MailConfig {
+    pub smtp_server: String,
+    pub envelope: Envelope,
+    pub credentials: Credentials,
+}
+
+impl MailConfig {
+    pub async fn try_from_serialized(config: MailConfigSerialized) -> Result<Self> {
+        let mut contacts = Vec::new();
+        for c in config.contacts {
+            contacts.push(EmailAddress::new(c)?);
+        }
+
+        let envelope = Envelope::new(Some(EmailAddress::new(config.sender)?), contacts)?;
+
+        let credentials = Credentials::new(config.username, config.password);
+
+        // test the connection
+        todo!();
+
+        Ok(Self {
+            smtp_server: config.smtp_server,
+            envelope,
+            credentials,
         })
     }
 }
