@@ -233,14 +233,6 @@ impl BackupManager {
                 }
             };
 
-            let world_folder_url = match Url::from_file_path(&world_folder) {
-                Ok(p) => p,
-                Err(_) => {
-                    println!("[ServerManager] [BACKUP] Failed to make path of world folder.");
-                    return;
-                }
-            };
-
             let backup_folder_url = match Url::from_file_path(&backup_folder) {
                 Ok(p) => p,
                 Err(_) => {
