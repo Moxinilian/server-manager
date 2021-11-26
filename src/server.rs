@@ -4,7 +4,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{backup::BackupManager, config::Config, rcon::RconManager};
+use crate::{
+    backup::BackupManager,
+    config::Config,
+    mail::{MailManager, MailRequest},
+    rcon::RconManager,
+};
 
 use anyhow::Result;
 use async_std::process::{Child, Command};
@@ -12,6 +17,7 @@ use async_std::{
     channel::{self},
     prelude::FutureExt as AsyncStdFutureExt,
 };
+use chrono::Utc;
 use futures::{pin_mut, select, FutureExt};
 use nix::sys::signal::{self, Signal};
 
@@ -43,6 +49,27 @@ impl ServerManager {
     pub async fn start(config: Config) -> Result<()> {
         let mut last_incident = Instant::now();
         let mut recent_incidents = 0;
+
+        let mail_handles = if let Some(mail_config) = &config.mailing {
+            MailManager::test_mail(mail_config.clone(), &config.name)
+                .await
+                .map_err(|e| {
+                    println!("[ServerManager] [MAIL] Failed to send startup email.");
+                    e
+                })?;
+
+            let (snd, rec) = channel::bounded(32);
+
+            let mail_task = async_std::task::spawn(MailManager::start(
+                mail_config.clone(),
+                config.name.clone(),
+                rec,
+            ));
+
+            Some((mail_task, snd))
+        } else {
+            None
+        };
 
         loop {
             let serv_handle = Command::new(&config.java)
@@ -112,16 +139,50 @@ impl ServerManager {
                     println!(
                         "[ServerManager] Too many incidents in a short period of time. Exiting."
                     );
+
+                    if let Some((_, chan)) = &mail_handles {
+                        chan.send(MailRequest {
+                            err_log,
+                            final_incident: true,
+                            time: Utc::now(),
+                        })
+                        .await
+                        .ok();
+                    }
+
                     break;
                 } else {
+                    if let Some((_, chan)) = &mail_handles {
+                        chan.send(MailRequest {
+                            err_log,
+                            final_incident: false,
+                            time: Utc::now(),
+                        })
+                        .await
+                        .ok();
+                    }
+
                     last_incident = Instant::now();
                     println!("[ServerManager] Restarting in 10 seconds...");
                     async_std::task::sleep(Duration::from_secs(10)).await;
                 }
             } else {
                 println!("[ServerManager] Auto-restart is disabled. Exiting.");
+                if let Some((_, chan)) = &mail_handles {
+                    chan.send(MailRequest {
+                        err_log,
+                        final_incident: true,
+                        time: Utc::now(),
+                    })
+                    .await
+                    .ok();
+                }
                 break;
             }
+        }
+
+        if let Some((handle, _)) = mail_handles {
+            handle.await?;
         }
 
         Ok(())

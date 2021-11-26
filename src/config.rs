@@ -4,7 +4,10 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use async_smtp::{smtp::authentication::Credentials, EmailAddress, Envelope};
+use lettre::{
+    message::{Mailbox, Mailboxes},
+    transport::smtp::authentication::Credentials,
+};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
@@ -12,6 +15,7 @@ use crate::cmd_utils::{Duplicity, Rclone};
 
 #[derive(Serialize, Deserialize)]
 pub struct ConfigSerialized {
+    name: String,
     auto_restart: bool,
     server_folder: String,
     server_jar: String,
@@ -57,6 +61,7 @@ impl Default for ConfigSerialized {
         let rcon_key: [u8; 48] = rand::thread_rng().gen();
 
         Self {
+            name: "Minecraft Server".into(),
             auto_restart: true,
             server_folder: "./".into(),
             server_jar: "minecraft_server.jar".into(),
@@ -87,6 +92,7 @@ impl Default for BackupConfigSerialized {
 
 #[derive(Clone)]
 pub struct Config {
+    pub name: String,
     pub auto_restart: bool,
     pub server_folder: PathBuf,
     pub server_jar: PathBuf,
@@ -133,6 +139,7 @@ impl Config {
         };
 
         Ok(Self {
+            name: value.name,
             auto_restart: value.auto_restart,
             server_folder,
             server_jar,
@@ -223,27 +230,27 @@ impl BackupConfig {
 #[derive(Clone)]
 pub struct MailConfig {
     pub smtp_server: String,
-    pub envelope: Envelope,
+    pub contacts: Mailboxes,
+    pub sender: Mailbox,
     pub credentials: Credentials,
 }
 
 impl MailConfig {
     pub async fn try_from_serialized(config: MailConfigSerialized) -> Result<Self> {
-        let mut contacts = Vec::new();
-        for c in config.contacts {
-            contacts.push(EmailAddress::new(c)?);
-        }
+        let sender = config.sender.parse()?;
 
-        let envelope = Envelope::new(Some(EmailAddress::new(config.sender)?), contacts)?;
+        let mut contacts = Vec::with_capacity(config.contacts.len());
+
+        for c in config.contacts {
+            contacts.push(c.parse()?);
+        }
 
         let credentials = Credentials::new(config.username, config.password);
 
-        // test the connection
-        todo!();
-
         Ok(Self {
             smtp_server: config.smtp_server,
-            envelope,
+            sender,
+            contacts: contacts.into(),
             credentials,
         })
     }
