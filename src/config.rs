@@ -217,7 +217,7 @@ impl BackupConfig {
         Ok(Self {
             backup_folder,
             world_folder,
-            incremental: Duration::from_secs(config.incremental_freq_hours * 60 * 2),
+            incremental: Duration::from_secs(config.incremental_freq_hours * 60 * 60),
             full_backup_every: config.full_backup_every,
             keep_full_backup: config.keep_full_backup,
             rclone_path: config.rclone_path,
