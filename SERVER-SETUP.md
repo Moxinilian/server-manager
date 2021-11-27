@@ -256,14 +256,14 @@ $ iptables -A INPUT -p tcp -s localhost --dport 25575 -j ACCEPT
 $ iptables -A INPUT -p tcp --dport 25575 -j DROP
 ```
 
-Order matters here because they both add the following rule:
+Order matters here because they respectively add the following rules:
 
 - If a connection comes from localhost on port 25575, accept it.
 - If a connection comes from any endpoint on port 25575, deny it.
 
 As rules are treated in order, this allows localhost being accepted even if there is a drop-all rule afterwards.
 
-### 
+### Setting up a persistent server
 
 We should now start the server-manager again. But if you do it by just calling the server-manager program, it will close as soon as you terminate your SSH session. Instead, let's create a persistent tmux session for it.
 
@@ -313,20 +313,21 @@ By default, server-manager sets up local backups in `server-manager.ron`.
 
 ```ron
 backups: Some((
-        // where to store backups relatie to server-manager working directory
+        // where to store backups relative to server-manager working directory
         backup_folder: "./backups", 
 
         // what to backup relative to server folder
         world_folder: "world",
 
-        // every how many hours perform an incremental backup
+        // how many hours between incremental backups
         incremental_freq_hours: 1,
         
-        // every how many hours perform a full backup in place of the next incremental backup
+        // how many hours between full backups in place of the next incremental backup
         full_backup_every: 336, 
 
-        // how many full backups to keep at maximum
-        // oldest backups will be deleted when this threshold is passed
+        // maximum amount of full backups to keep
+        // oldest full backups and dependent incremental backups will be deleted
+        // when this threshold is passed
         keep_full_backup: 2, 
 
         // whether backups should be synced remotely
@@ -334,10 +335,11 @@ backups: Some((
         rclone_path: None,
 
         // whether to make the Minecraft server flush all chunks
-        // on save, risking freezes
+        // on save, risking freezes on backup but guaranteeing data
+        // integrity to a ridiculous level
         flush_on_save: true,
 
-        // whether to silent the backup messages in Minecraft chat
+        // whether to silent backup messages in the Minecraft chat
         silent: false,
     ))
 ```
@@ -352,7 +354,7 @@ $ rclone config
 
 Select "New remote" then follow the instructions specific to your remote provider. If you are using Backblaze B2, you can follow [this tutorial](https://help.backblaze.com/hc/en-us/articles/1260804565710-How-to-use-rclone-with-Backblaze-B2-Cloud-Storage).
 
-Once you remote provider is configured, set the remote path to be used by server-manager in the config:
+Once your remote provider is configured, set the remote path to be used by server-manager in the config:
 
 ```ron
 rclone_path: Some("my_remote:path/to/backup"),
