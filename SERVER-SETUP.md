@@ -368,7 +368,7 @@ By default, server-manager does not configure mail reports. Replace the `mailing
     mailing: Some((
         contacts: ["Alice <alice@example.cm>", "Bob <bob@example.com>"],
         smtp_server: "<your mail server host>",
-        sender: "Minecraft Mail Report <mail-report@example.com>",
+        sender: "Minecraft Mail Report <mail.report@example.com>",
         username: "<your mail server username>",
         password: "<your mail server password>",
     )),
