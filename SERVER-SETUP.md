@@ -144,7 +144,7 @@ $ sudo adduser minecraft
 You should add your `admin` user to the `minecraft` group to make it easier to manage the files of `minecraft` from the admin account.
 
 ```
-$ usermod -aG minecraft admin
+$ sudo usermod -aG minecraft admin
 ```
 
 We won't connect as this user via SSH either, so let's block its SSH access.

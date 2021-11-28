@@ -48,7 +48,13 @@ impl Rclone {
 
     pub async fn sync(remote: &str, local: &str) -> Result<()> {
         // rclone sync local remote
-        let mut child = Command::new("rclone")
+        let mut child = Command::new("nice")
+            .arg("-n")
+            .arg("10")
+            .arg("ionice")
+            .arg("-c")
+            .arg("3")
+            .arg("rclone")
             .arg("sync")
             .arg(local)
             .arg(remote)
@@ -92,7 +98,13 @@ impl Duplicity {
         to_backup: &str,
         backup_to: &str,
     ) -> Result<()> {
-        let mut child = Command::new("duplicity")
+        let mut child = Command::new("nice")
+            .arg("-n")
+            .arg("10")
+            .arg("ionice")
+            .arg("-c")
+            .arg("3")
+            .arg("duplicity")
             .arg("--no-encryption")
             .arg("--allow-source-mismatch")
             .arg("--full-if-older-than")
@@ -121,7 +133,13 @@ impl Duplicity {
     }
 
     pub async fn cleanup_old(keep_full: u32, backup_to: &str) -> Result<()> {
-        let mut child = Command::new("duplicity")
+        let mut child = Command::new("nice")
+            .arg("-n")
+            .arg("10")
+            .arg("ionice")
+            .arg("-c")
+            .arg("3")
+            .arg("duplicity")
             .arg("--allow-source-mismatch")
             .arg("remove-all-but-n-full")
             .arg(keep_full.to_string())
