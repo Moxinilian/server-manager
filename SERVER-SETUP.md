@@ -4,7 +4,7 @@ This guide will help you set up and use a VPS for Minecraft servers with server-
 
 ## Using an installed server
 
-An already set-up server should be pretty autonomous. But if you need to access the files or the console of the server, a procedure is described here.
+An already set-up server should be pretty autonomous. But if you need to access the files or the console of the server, the procedure is described here.
 
 ### Navigating the system over SSH
 
@@ -36,7 +36,7 @@ Do not terminate the process to exit the session (using for example Ctrl+C) as t
 
 ### Transfering files
 
-Once you have located a file you would like to download or upload over on the server, use SCP from your **local machine** to transfer the files. On Linux, it can be done using the following command for download:
+Once you have located a file you would like to download or upload to the server, use SCP from your **local machine** to transfer the files. On Linux, it can be done using the following command for download:
 
 ```
 $ scp remote:/path/in/remote path/in/local
@@ -64,7 +64,7 @@ $ sudo chown -R minecraft /home/minecraft
 
 ### Restoring a backup
 
-To restore the last backup from backup data stored on the VPS, use duplicity's backup restore feature.
+To restore the last backup from backup data stored either on the VPS or remotely, use duplicity's backup restore feature.
 
 ```
 $ duplicity url://to/the/backup/data path/wher/to/restore
@@ -73,7 +73,7 @@ $ duplicity url://to/the/backup/data path/wher/to/restore
 The backup data should be provided as a URL:
 
 - If it is already stored locally, use the file URL scheme. For example, `file:///path/to/backup`.
-- If it is stored remotely, use the URL associated to your remote storage solution. Note that most cloud storage provider charge for the download of data, thus prefer to restore from local data when possible.
+- If it is stored remotely, use the URL associated to your remote storage solution. Note that most cloud storage providers charge for the download of data, thus prefer to restore from local data when possible.
 
 To restore an older backup, use the `-t` argument in duplicity.
 
@@ -259,7 +259,7 @@ $ iptables -A INPUT -p tcp --dport 25575 -j DROP
 Order matters here because they respectively add the following rules:
 
 - If a connection comes from localhost on port 25575, accept it.
-- If a connection comes from any endpoint on port 25575, deny it.
+- If a connection comes from any IP on port 25575, deny it.
 
 As rules are treated in order, this allows localhost being accepted even if there is a drop-all rule afterwards.
 
@@ -271,7 +271,7 @@ We should now start the server-manager again. But if you do it by just calling t
 $ tmux new-session -d -s minecraft '../server-manager'
 ```
 
-This command created a tmux session named `minecraft`. Check it exist by running
+This command created a tmux session named `minecraft`. Check it exists by running
 
 ```
 $ tmux list-sessions
@@ -344,7 +344,7 @@ backups: Some((
     ))
 ```
 
-In order to have server-manager also sync backup data to an offsite location, you must first pick a remote storage provider. You can roll your own solution but I recommend Backblaze B2 as they are very inexpensive, offer 10GB hosting for free and are compatible with all the tools used here. 
+In order to have server-manager also sync backup data to an offsite location, you must first pick a remote storage provider. You can roll your own solution but I recommend Backblaze B2 as they are very inexpensive, offer 10GB hosting for free, are compatible with all the tools used here and globally offer an easy to use experience. 
 
 Configure your remote location with rclone:
 
