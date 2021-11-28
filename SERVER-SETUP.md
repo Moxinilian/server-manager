@@ -130,13 +130,7 @@ You can now disconnect from SSH. Try to reconnect again to make sure it does not
 Adapt the following command to your package manager.
 
 ```
-sudo apt install tmux git curl duplicity rclone openjdk-17-jre-headless
-```
-
-Install the Rust compiler.
-
-```
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+sudo apt install tmux git curl duplicity rclone openjdk-17-jre-headless gcc iptables
 ```
 
 ### Setting up the minecraft user
@@ -144,13 +138,13 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 Now, let's create an user for the minecraft server. Again, pick strong passwords.
 
 ```
-$ sudo adduser admin
+$ sudo adduser minecraft
 ```
 
 You should add your `admin` user to the `minecraft` group to make it easier to manage the files of `minecraft` from the admin account.
 
 ```
-$ usermod -aG minecraft admusr
+$ usermod -aG minecraft admin
 ```
 
 We won't connect as this user via SSH either, so let's block its SSH access.
@@ -191,10 +185,16 @@ $ mkdir my-minecraft-server
 
 ### Building server-manager
 
+Install the Rust compiler.
+
+```
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
 Clone server-manager.
 
 ```
-$ git clone https://github.com/Moxinilian/server-manager
+$ git clone https://github.com/Moxinilian/server-manager server-manager-source
 ```
 
 ```
@@ -224,7 +224,7 @@ cd ~/my-minecraft-server
 Download the Minecraft server JAR you want. Here, we download a JAR for Minecraft 1.18.
 
 ```
-curl https://launcher.mojang.com/v1/objects/9a03d2c4ec2c737ce9d17a43d3774cdc0ea21030/server.jar --output minecraft-server.jar
+curl https://launcher.mojang.com/v1/objects/9a03d2c4ec2c737ce9d17a43d3774cdc0ea21030/server.jar --output minecraft_server.jar
 ```
 
 Start server-manager once to generate a dummy configuration file.
@@ -234,6 +234,12 @@ $ ../server-manager
 ```
 
 Edit the server-manager config `server-manager.ron` to your liking.
+
+If you keep the default backup configuration, don't forget to create a backup folder.
+
+```
+$ mkdir backups
+```
 
 Once done, start the manager again. Accept the Minecraft EULA. Restart the server-manager if it gave up on restarting the server.
 
@@ -247,13 +253,13 @@ Open `server.properties` and configure it to your liking. Specifically, set the 
 - `rcon.password` to a **very strong** password. You can use the one server-manager generated in `server-manager.ron`. Update the password in `server-manager.ron` if you use a different one.
 - Make sure `rcon.port` and the `rcon_port` value in `server-manager.ron` match.
 
-To communicate with the server, server-manager will use RCON. As such, it is much better security-wise to restrict RCON to local access only. One can achieve this using the following commands (assuming the RCON port you use is 25575). Note that **they must be executed in this order**.
+To communicate with the server, server-manager will use RCON. As such, it is much better security-wise to restrict RCON to local access only. One can achieve this using the following commands as the `admin` user (assuming the RCON port you use is 25575). Note that **they must be executed in this order**.
 
 ```
-$ iptables -A INPUT -p tcp -s localhost --dport 25575 -j ACCEPT
+$ sudo iptables -A INPUT -p tcp -s localhost --dport 25575 -j ACCEPT
 ```
 ```
-$ iptables -A INPUT -p tcp --dport 25575 -j DROP
+$ sudo iptables -A INPUT -p tcp --dport 25575 -j DROP
 ```
 
 Order matters here because they respectively add the following rules:
