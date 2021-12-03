@@ -2,6 +2,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use async_std::channel::{Receiver, Sender};
+use rcon::Connection;
 
 use crate::config::Config;
 
@@ -11,6 +12,20 @@ pub enum MinecraftCommand {
     SaveOff,
     Broadcast(String),
     Await(Sender<()>),
+}
+
+pub struct RconError {
+    error: anyhow::Error,
+    cmd: Option<MinecraftCommand>,
+}
+
+impl<T> From<T> for RconError where T: std::error::Error + Send + Sync + 'static {
+    fn from(err: T) -> Self {
+        Self {
+            error: err.into(),
+            cmd: None,
+        }
+    }
 }
 
 pub struct RconManager;
@@ -23,9 +38,11 @@ impl RconManager {
 
         let mut first_attempt_attempts = 0;
 
+        let mut pending_msg = None;
+
         let err_log = loop {
-            if let Err(err) = Self::inner(&config, &chan, first_attempt).await {
-                println!("[ServerManager] [RCON] Unexpected failure.\n{}", err);
+            if let Err(err) = Self::inner(&config, &chan, first_attempt, pending_msg).await {
+                println!("[ServerManager] [RCON] Unexpected failure.\n{}", err.error);
 
                 first_attempt = false;
 
@@ -40,6 +57,8 @@ impl RconManager {
                     println!("[ServerManager] [RCON] Reconnecting...");
                     async_std::task::sleep(Duration::from_secs(1)).await;
                 }
+
+                pending_msg = err.cmd;
             } else {
                 first_attempt_attempts += 1;
 
@@ -48,6 +67,8 @@ impl RconManager {
                 }
 
                 async_std::task::sleep(Duration::from_secs(10)).await;
+
+                pending_msg = None;
             }
         };
 
@@ -58,7 +79,8 @@ impl RconManager {
         config: &Config,
         chan: &Receiver<MinecraftCommand>,
         first_attempt: bool,
-    ) -> Result<()> {
+        pending_message: Option<MinecraftCommand>,
+    ) -> Result<(), RconError> {
         let address = String::from("localhost:") + &config.rcon_port.to_string();
 
         let mut conn = match rcon::Connection::builder()
@@ -81,22 +103,46 @@ impl RconManager {
 
         println!("[ServerManager] [RCON] Acquired connection to server.");
 
+        if let Some(pending) = pending_message {
+            if let Err(error) = Self::send_message(&mut conn, &pending).await {
+                return Err(RconError {
+                    error: error.into(),
+                    cmd: Some(pending),
+                });
+            }
+
+            println!("[ServerManager] [RCON] Pending message processed.");
+        }
+
         loop {
-            match chan.recv().await? {
-                MinecraftCommand::SaveOn => drop(conn.cmd("save-on").await?),
-                MinecraftCommand::SaveAll(flush) => {
-                    conn.cmd(if flush { "save-all flush" } else { "save-all" })
-                        .await?;
-                }
-                MinecraftCommand::SaveOff => drop(conn.cmd("save-off").await?),
-                MinecraftCommand::Broadcast(msg) => {
-                    conn.cmd(&format!(
-                        "tellraw @a {{\"text\":\"{}\",\"color\":\"light_purple\"}}",
-                        msg
-                    ))
-                    .await?;
-                }
-                MinecraftCommand::Await(back) => back.send(()).await?,
+            let cmd = chan.recv().await?;
+            if let Err(error) = Self::send_message(&mut conn, &cmd).await {
+                return Err(RconError {
+                    error: error.into(),
+                    cmd: Some(cmd),
+                });
+            }
+        }
+    }
+
+    async fn send_message(conn: &mut Connection, cmd: &MinecraftCommand) -> Result<(), rcon::Error> {
+        match &cmd {
+            MinecraftCommand::SaveOn => conn.cmd("save-on").await.map(drop),
+            MinecraftCommand::SaveAll(flush) => conn
+                .cmd(if *flush { "save-all flush" } else { "save-all" })
+                .await
+                .map(drop),
+            MinecraftCommand::SaveOff => conn.cmd("save-off").await.map(drop),
+            MinecraftCommand::Broadcast(msg) => conn
+                .cmd(&format!(
+                    "tellraw @a {{\"text\":\"{}\",\"color\":\"light_purple\"}}",
+                    msg
+                ))
+                .await
+                .map(drop),
+            MinecraftCommand::Await(back) => {
+                back.send(()).await.ok();
+                Ok(())
             }
         }
     }
