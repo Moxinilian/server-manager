@@ -143,6 +143,7 @@ impl Duplicity {
             .arg("--allow-source-mismatch")
             .arg("remove-all-but-n-full")
             .arg(keep_full.to_string())
+            .arg("--force")
             .arg(backup_to)
             .stderr(Stdio::piped())
             .spawn()?;
