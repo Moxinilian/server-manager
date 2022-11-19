@@ -3,7 +3,7 @@
 Quick Minecraft server manager. 
 Includes offsite backup capabilities, auto restart and incident email reports.
 
-Oh and it's **not tested yet**.
+We have used it in production and are fairly confident it works well, but of course, **this software is provided as-is with no warranty of any kind** (see license).
 
 ## Compatibility
 
