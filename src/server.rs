@@ -76,7 +76,7 @@ impl ServerManager {
                 .args(&config.java_args)
                 .arg("-jar")
                 .arg(&config.server_jar)
-                .arg("--nogui")
+                .arg("nogui")
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit())
                 .stdin(Stdio::inherit())
