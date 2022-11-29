@@ -67,7 +67,7 @@ $ sudo chown -R minecraft /home/minecraft
 To restore the last backup from backup data stored either on the VPS or remotely, use duplicity's backup restore feature.
 
 ```
-$ duplicity url://to/the/backup/data path/wher/to/restore
+$ duplicity --no-encryption url://to/the/backup/data path/where/to/restore
 ```
 
 The backup data should be provided as a URL:
@@ -78,7 +78,7 @@ The backup data should be provided as a URL:
 To restore an older backup, use the `-t` argument in duplicity.
 
 ```
-$ duplicity -t 2W url://to/the/backup/data path/wher/to/restore
+$ duplicity --no-encryption -t 2W url://to/the/backup/data path/where/to/restore
 ```
 
 For example, the command above will restore the newest data before the date 2 weeks ago (`2W`). Other possible time descriptors are `2D` (2 days), `5h` (5 hours), etc. You can also use Unix timestamps. See [duplicity's manual page](http://duplicity.nongnu.org/vers7/duplicity.1.html#sect8) for all possible time formats.
