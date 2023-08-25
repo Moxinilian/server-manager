@@ -18,4 +18,4 @@ nix = "0.23"
 async-walkdir = "0.2"
 url = "2.2"
 chrono = "0.4"
-lettre = { version = "0.10.0-rc.4", features = ["builder", "async-std1-rustls-tls", "smtp-transport", "pool", "hostname"], default-features = false }
+lettre = { version = "0.10", features = ["builder", "async-std1-rustls-tls", "smtp-transport", "pool", "hostname"], default-features = false }
